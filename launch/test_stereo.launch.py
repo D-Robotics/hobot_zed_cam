@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+
 from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import IncludeLaunchDescription
@@ -23,14 +24,23 @@ from launch.substitutions import LaunchConfiguration
 
 
 def generate_launch_description():
-    need_rectify_arg = DeclareLaunchArgument(
-        "need_rectify", default_value="false", description="need rectify"
+    stereo_calib_file_path = os.path.join(
+        get_package_share_directory("stereonet_model"), "config", "stereo.yaml"
     )
 
-    show_raw_and_rectify_arg = DeclareLaunchArgument(
-        "show_raw_and_rectify", default_value="false", description="show raw and rectify_"
+    stereo_calib_path_arg = DeclareLaunchArgument(
+        "stereo_calib_path",
+        default_value=stereo_calib_file_path,
+        description="Description of my_param",
     )
 
+    visual_alpha_arg = DeclareLaunchArgument(
+        "visual_alpha", default_value="2", description="visual alpha"
+    )
+
+    visual_beta_arg = DeclareLaunchArgument(
+        "visual_beta", default_value="0", description="visual beta"
+    )
 
     # 零拷贝环境配置
     shared_mem_node = IncludeLaunchDescription(
@@ -43,14 +53,28 @@ def generate_launch_description():
 
     # zed双目相机
     zed_cam = Node(
-        package="hobot_zed_cam",
-        executable="anypub_stereo_imgs_nv12",
-        output="screen",
-        parameters=[
-            {"need_rectify": LaunchConfiguration("need_rectify")},
-            {"show_raw_and_rectify": LaunchConfiguration("show_raw_and_rectify")},
-        ],
-        arguments=["--ros-args", "--log-level", "info"],
+        package='hobot_zed_cam',
+        executable='anypub_stereo_imgs_nv12',
+        output='screen',
+        arguments=['--ros-args', '--log-level', 'info']
+    )
+
+    # 双目深度估计模型
+    stereonet_node = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(
+                get_package_share_directory("stereonet_model"),
+                "launch/stereonet_model.launch.py",
+            )
+        ),
+        launch_arguments={
+            "stereo_image_topic": "/image_combine_raw",
+            "stereo_calib_file_path": LaunchConfiguration("stereo_calib_path"),
+            "alpha": LaunchConfiguration("visual_alpha"),
+            "beta": LaunchConfiguration("visual_beta"),
+            "stereo_combine_mode": "1",
+            "log_level": "warn",
+        }.items(),
     )
 
     # 编码节点
@@ -64,9 +88,9 @@ def generate_launch_description():
         launch_arguments={
             "codec_in_mode": "ros",
             "codec_out_mode": "ros",
-            # 左图和右图拼接后的图
-            "codec_sub_topic": "/image_combine_raw",
-            "codec_in_format": "nv12",
+            # 左图和深度拼接后的图
+            "codec_sub_topic": "/StereoNetNode/stereonet_visual",
+            "codec_in_format": "bgr8",
             "codec_pub_topic": "/image_jpeg",
             "codec_out_format": "jpeg",
             "log_level": "warn",
@@ -89,10 +113,12 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
-            need_rectify_arg,
-            show_raw_and_rectify_arg,
+            stereo_calib_path_arg,
+            visual_alpha_arg,
+            visual_beta_arg,
             shared_mem_node,
             zed_cam,
+            stereonet_node,
             codec_node,
             web_node,
         ]
