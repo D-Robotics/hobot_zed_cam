@@ -4170,7 +4170,7 @@ bool downloadCalibrationFile(unsigned int serial_number, std::string &calibratio
 #include <opencv2/opencv.hpp>
 
 bool initCalibration(std::string calibration_file, cv::Size2i image_size, cv::Mat &map_left_x, cv::Mat &map_left_y,
-        cv::Mat &map_right_x, cv::Mat &map_right_y, cv::Mat &cameraMatrix_left, cv::Mat &cameraMatrix_right, double *baseline=nullptr) {
+        cv::Mat &map_right_x, cv::Mat &map_right_y, cv::Mat &cameraMatrix_left, cv::Mat &cameraMatrix_right, cv::Size2i dst_size, double *baseline=nullptr) {
 
     if (!checkFile(calibration_file)) {
         std::cout << "Calibration file missing." << std::endl;
@@ -4270,11 +4270,11 @@ bool initCalibration(std::string calibration_file, cv::Size2i image_size, cv::Ma
 
     cv::Mat R1, R2, P1, P2, Q;
     cv::stereoRectify(cameraMatrix_left, distCoeffs_left, cameraMatrix_right, distCoeffs_right, image_size, R, T,
-            R1, R2, P1, P2, Q, cv::CALIB_ZERO_DISPARITY, 0, cv::Size(1280, 640));
+            R1, R2, P1, P2, Q, cv::CALIB_ZERO_DISPARITY, 0, dst_size);
 
     //Precompute maps for cv::remap()
-    initUndistortRectifyMap(cameraMatrix_left, distCoeffs_left, R1, P1, cv::Size(1280, 640), CV_32FC1, map_left_x, map_left_y);
-    initUndistortRectifyMap(cameraMatrix_right, distCoeffs_right, R2, P2, cv::Size(1280, 640), CV_32FC1, map_right_x, map_right_y);
+    initUndistortRectifyMap(cameraMatrix_left, distCoeffs_left, R1, P1, dst_size, CV_32FC1, map_left_x, map_left_y);
+    initUndistortRectifyMap(cameraMatrix_right, distCoeffs_right, R2, P2, dst_size, CV_32FC1, map_right_x, map_right_y);
 
     cameraMatrix_left = P1;
     cameraMatrix_right = P2;

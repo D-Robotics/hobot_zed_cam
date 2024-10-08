@@ -43,16 +43,15 @@ public:
         // <---- Create Video Capture
 
         // ----> Retrieve calibration file from Stereolabs server
-        std::string calibration_file;
         // ZED Calibration
-        unsigned int serial_number = cap_0.getSerialNumber();
         // Download camera calibration file
-        if(!sl_oc::tools::downloadCalibrationFile(serial_number, calibration_file))
-        {
-            RCLCPP_ERROR(this->get_logger(), "=> could not load calibration file from Stereolabs servers");
-        }
+        std::string calibration_file;
         if (need_rectify_)
         {
+            if(!sl_oc::tools::downloadCalibrationFile(cap_0.getSerialNumber(), calibration_file))
+            {
+                RCLCPP_ERROR(this->get_logger(), "=> could not load calibration file from Stereolabs servers");
+            }
             RCLCPP_INFO(this->get_logger(), "=> calibration file found. Loading...");
         }
 
@@ -65,11 +64,13 @@ public:
         cv::Mat map_left_x, map_left_y;
         cv::Mat map_right_x, map_right_y;
         cv::Mat cameraMatrix_left, cameraMatrix_right;
+        double baseline = 0.0;
         if (need_rectify_)
         {
-            sl_oc::tools::initCalibration(calibration_file, cv::Size(w/2,h), map_left_x, map_left_y, map_right_x, map_right_y, cameraMatrix_left, cameraMatrix_right);
+            sl_oc::tools::initCalibration(calibration_file, cv::Size(w/2,h), map_left_x, map_left_y, map_right_x, map_right_y, cameraMatrix_left, cameraMatrix_right, cv::Size(1280, 640), &baseline);
             RCLCPP_INFO_STREAM(this->get_logger(), "=> camera Matrix L: \n" << cameraMatrix_left);
             RCLCPP_INFO_STREAM(this->get_logger(), "=> camera Matrix R: \n" << cameraMatrix_right);
+            RCLCPP_INFO_STREAM(this->get_logger(), "=> baseline: " << baseline);
         }
         // ----> Initialize calibration
 
