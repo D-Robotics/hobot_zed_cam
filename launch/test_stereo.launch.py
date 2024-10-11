@@ -25,7 +25,7 @@ from launch.substitutions import LaunchConfiguration
 
 def generate_launch_description():
     stereo_calib_file_path = os.path.join(
-        get_package_share_directory("stereonet_model"), "config", "stereo.yaml"
+        get_package_share_directory("hobot_zed_cam"), "config", "stereo_8_zed_mini.yaml"
     )
 
     stereo_calib_path_arg = DeclareLaunchArgument(

@@ -102,6 +102,7 @@ target_link_libraries(pub_stereo_imgs_nv12
 # install
 install(TARGETS pub_stereo_imgs_nv12 DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY config DESTINATION share/${PROJECT_NAME})
 
 ############################################################################
 
