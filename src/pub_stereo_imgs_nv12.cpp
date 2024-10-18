@@ -5,6 +5,10 @@
 #include "videocapture.hpp"
 #include "calibration.hpp"
 #include <arm_neon.h>
+#include <thread>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
 
 class PubStereoImgsNv12Node : public rclcpp::Node
 {
@@ -18,15 +22,20 @@ public:
         this->get_parameter("need_rectify", need_rectify_);
         this->declare_parameter("show_raw_and_rectify", false);
         this->get_parameter("show_raw_and_rectify", show_raw_and_rectify_);
-        if (show_raw_and_rectify_) need_rectify_ = true;
-        RCLCPP_INFO_STREAM(this->get_logger(), "\033[31m" << std::endl
-                                                << "=> need_rectify: " << need_rectify_ << std::endl
-                                                << "=> show_raw_and_rectify: " << show_raw_and_rectify_ 
-                                                << "\033[0m");
+        if (show_raw_and_rectify_)
+            need_rectify_ = true;
+        RCLCPP_INFO_STREAM(this->get_logger(), "\033[31m" << std::endl << "=> need_rectify: " << need_rectify_ << std::endl << "=> show_raw_and_rectify: " << show_raw_and_rectify_ << "\033[0m");
 
         // ======================================================================================================================================
         // sub & pub
-        stereo_msg_pub_ = this->create_publisher<sensor_msgs::msg::Image>("/image_combine_raw", 10);
+        auto qos = rclcpp::QoS(rclcpp::KeepLast(10));
+        qos.reliability(rclcpp::ReliabilityPolicy::Reliable);
+        qos.durability(rclcpp::DurabilityPolicy::TransientLocal);
+        stereo_msg_pub_ = this->create_publisher<sensor_msgs::msg::Image>("/image_combine_raw", qos);
+
+        // start publishing thread
+        RCLCPP_INFO(this->get_logger(), "\033[31m=> create pub thread\033[0m");
+        publish_thread_ = std::thread(&PubStereoImgsNv12Node::publish_stereo_img, this);
 
         // ======================================================================================================================================
         sl_oc::video::VideoParams params;
@@ -48,7 +57,7 @@ public:
         std::string calibration_file;
         if (need_rectify_)
         {
-            if(!sl_oc::tools::downloadCalibrationFile(cap_0.getSerialNumber(), calibration_file))
+            if (!sl_oc::tools::downloadCalibrationFile(cap_0.getSerialNumber(), calibration_file))
             {
                 RCLCPP_ERROR(this->get_logger(), "=> could not load calibration file from Stereolabs servers");
             }
@@ -57,7 +66,7 @@ public:
 
         // ----> Frame size
         int w, h;
-        cap_0.getFrameSize(w,h);
+        cap_0.getFrameSize(w, h);
         // <---- Frame size
 
         // ----> Initialize calibration
@@ -67,7 +76,8 @@ public:
         double baseline = 0.0;
         if (need_rectify_)
         {
-            sl_oc::tools::initCalibration(calibration_file, cv::Size(w/2,h), map_left_x, map_left_y, map_right_x, map_right_y, cameraMatrix_left, cameraMatrix_right, cv::Size(1280, 640), &baseline);
+            sl_oc::tools::initCalibration(calibration_file, cv::Size(w / 2, h), map_left_x, map_left_y, map_right_x, map_right_y, cameraMatrix_left, cameraMatrix_right, cv::Size(1280, 640),
+                                          &baseline);
             RCLCPP_INFO_STREAM(this->get_logger(), "=> camera Matrix L: \n" << cameraMatrix_left);
             RCLCPP_INFO_STREAM(this->get_logger(), "=> camera Matrix R: \n" << cameraMatrix_right);
             RCLCPP_INFO_STREAM(this->get_logger(), "=> baseline: " << baseline);
@@ -82,10 +92,10 @@ public:
             const sl_oc::video::Frame frame = cap_0.getLastFrame();
 
             // ----> If the frame is valid we can display it
-            if(frame.data!=nullptr)
+            if (frame.data != nullptr)
             {
                 // ----> Conversion from YUV 4:2:2 to BGR for visualization
-                cv::Mat frameYUV = cv::Mat( frame.height, frame.width, CV_8UC2, frame.data );
+                cv::Mat frameYUV = cv::Mat(frame.height, frame.width, CV_8UC2, frame.data);
                 // <---- Conversion from YUV 4:2:2 to BGR for visualization
                 cv::cvtColor(frameYUV, frameBGR, cv::COLOR_YUV2BGR_YUYV);
                 // ----> Extract left and right images from side-by-side
@@ -136,11 +146,31 @@ public:
                 stereo_msg->step = frameBGR.cols;
                 stereo_msg->data.assign(combine_nv12.data, combine_nv12.data + (combine_nv12.rows * combine_nv12.cols));
 
-                stereo_msg_pub_->publish(*stereo_msg);
+                std::unique_lock<std::mutex> lock(queue_mutex_);
+                if (image_queue_.size() >= 10)
+                {
+                    RCLCPP_INFO_ONCE(this->get_logger(), "\033[31m=> image queue if full!\033[0m");
+                    image_queue_.pop();
+                }
+                image_queue_.push(stereo_msg);
+                cv_.notify_all();
+
+                // stereo_msg_pub_->publish(*stereo_msg);
             }
         }
         // ======================================================================================================================================
     }
+
+    ~PubStereoImgsNv12Node()
+    {
+        stop_ = true;
+        cv_.notify_all();
+        if (publish_thread_.joinable())
+        {
+            publish_thread_.join();
+        }
+    }
+
 private:
     void bgr24_to_nv12_neon(uint8_t *bgr24, uint8_t *nv12, int width, int height)
     {
@@ -243,9 +273,31 @@ private:
         bgr24_to_nv12_neon(bgr.data, nv12.data, width, height);
     }
 
-    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr stereo_msg_pub_;
+    void publish_stereo_img()
+    {
+        while (rclcpp::ok() && !stop_)
+        {
+            std::unique_lock<std::mutex> lock(queue_mutex_);
+            cv_.wait(lock, [this]() { return !image_queue_.empty() || stop_; });
+
+            if (!image_queue_.empty())
+            {
+                auto stereo_msg = image_queue_.front();
+                stereo_msg_pub_->publish(*stereo_msg);
+                image_queue_.pop();
+            }
+        }
+    }
+
+    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr stereo_msg_pub_; // stereo image publisher
     bool need_rectify_;
     bool show_raw_and_rectify_;
+
+    std::queue<sensor_msgs::msg::Image::SharedPtr> image_queue_; // queue for storing images
+    std::mutex queue_mutex_;                                     // mutex lock protecting the queue
+    std::condition_variable cv_;                                 // condition variables for thread synchronization
+    std::thread publish_thread_;                                 // publish thread
+    bool stop_ = false;                                          // used to stop a thread
 };
 
 int main(int argc, char *argv[])
