@@ -5,10 +5,6 @@
 #include "videocapture.hpp"
 #include "calibration.hpp"
 #include <arm_neon.h>
-#include <thread>
-#include <queue>
-#include <mutex>
-#include <condition_variable>
 
 class PubStereoImgsNv12Node : public rclcpp::Node
 {
@@ -35,7 +31,6 @@ public:
 
         // start publishing thread
         RCLCPP_INFO(this->get_logger(), "\033[31m=> create pub thread\033[0m");
-        publish_thread_ = std::thread(&PubStereoImgsNv12Node::publish_stereo_img, this);
 
         // ======================================================================================================================================
         sl_oc::video::VideoParams params;
@@ -92,8 +87,9 @@ public:
             const sl_oc::video::Frame frame = cap_0.getLastFrame();
 
             // ----> If the frame is valid we can display it
-            if (frame.data != nullptr)
+            if (frame.data != nullptr && frame.timestamp != last_frame_timestamp_)
             {
+                last_frame_timestamp_ = frame.timestamp;
                 // ----> Conversion from YUV 4:2:2 to BGR for visualization
                 cv::Mat frameYUV = cv::Mat(frame.height, frame.width, CV_8UC2, frame.data);
                 // <---- Conversion from YUV 4:2:2 to BGR for visualization
@@ -146,29 +142,15 @@ public:
                 stereo_msg->step = frameBGR.cols;
                 stereo_msg->data.assign(combine_nv12.data, combine_nv12.data + (combine_nv12.rows * combine_nv12.cols));
 
-                std::unique_lock<std::mutex> lock(queue_mutex_);
-                if (image_queue_.size() >= 10)
-                {
-                    RCLCPP_INFO_ONCE(this->get_logger(), "\033[31m=> image queue if full!\033[0m");
-                    image_queue_.pop();
-                }
-                image_queue_.push(stereo_msg);
-                cv_.notify_all();
-
-                // stereo_msg_pub_->publish(*stereo_msg);
+                RCLCPP_INFO_ONCE(this->get_logger(), "\033[31m=> zed frame pub\033[0m");
+                stereo_msg_pub_->publish(*stereo_msg);
+            }
+            else
+            {
+                RCLCPP_WARN(this->get_logger(), "\033[31m=> zed frame error!\033[0m");
             }
         }
         // ======================================================================================================================================
-    }
-
-    ~PubStereoImgsNv12Node()
-    {
-        stop_ = true;
-        cv_.notify_all();
-        if (publish_thread_.joinable())
-        {
-            publish_thread_.join();
-        }
     }
 
 private:
@@ -273,31 +255,11 @@ private:
         bgr24_to_nv12_neon(bgr.data, nv12.data, width, height);
     }
 
-    void publish_stereo_img()
-    {
-        while (rclcpp::ok() && !stop_)
-        {
-            std::unique_lock<std::mutex> lock(queue_mutex_);
-            cv_.wait(lock, [this]() { return !image_queue_.empty() || stop_; });
-
-            if (!image_queue_.empty())
-            {
-                auto stereo_msg = image_queue_.front();
-                stereo_msg_pub_->publish(*stereo_msg);
-                image_queue_.pop();
-            }
-        }
-    }
-
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr stereo_msg_pub_; // stereo image publisher
     bool need_rectify_;
     bool show_raw_and_rectify_;
 
-    std::queue<sensor_msgs::msg::Image::SharedPtr> image_queue_; // queue for storing images
-    std::mutex queue_mutex_;                                     // mutex lock protecting the queue
-    std::condition_variable cv_;                                 // condition variables for thread synchronization
-    std::thread publish_thread_;                                 // publish thread
-    bool stop_ = false;                                          // used to stop a thread
+    uint64_t last_frame_timestamp_ = 0;
 };
 
 int main(int argc, char *argv[])
