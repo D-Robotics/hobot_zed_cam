@@ -28,7 +28,11 @@ def generate_launch_description():
     )
 
     show_raw_and_rectify_arg = DeclareLaunchArgument(
-        "show_raw_and_rectify", default_value="false", description="show raw and rectify_"
+        "show_raw_and_rectify", default_value="false", description="show raw and rectify"
+    )
+
+    save_image_arg = DeclareLaunchArgument(
+        "save_image", default_value="false", description="save image flag"
     )
 
 
@@ -49,6 +53,7 @@ def generate_launch_description():
         parameters=[
             {"need_rectify": LaunchConfiguration("need_rectify")},
             {"show_raw_and_rectify": LaunchConfiguration("show_raw_and_rectify")},
+            {"save_image": LaunchConfiguration("save_image")},
         ],
         arguments=["--ros-args", "--log-level", "info"],
     )
@@ -91,6 +96,7 @@ def generate_launch_description():
         [
             need_rectify_arg,
             show_raw_and_rectify_arg,
+            save_image_arg,
             shared_mem_node,
             zed_cam,
             codec_node,

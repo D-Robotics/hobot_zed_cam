@@ -5,6 +5,7 @@
 #include "videocapture.hpp"
 #include "calibration.hpp"
 #include <arm_neon.h>
+#include <fstream>
 
 class PubStereoImgsNv12Node : public rclcpp::Node
 {
@@ -14,13 +15,16 @@ public:
         RCLCPP_INFO(this->get_logger(), "=> init pub_stereo_imgs_nv12_node!");
         // ======================================================================================================================================
         // param
-        this->declare_parameter("need_rectify", false);
-        this->get_parameter("need_rectify", need_rectify_);
-        this->declare_parameter("show_raw_and_rectify", false);
-        this->get_parameter("show_raw_and_rectify", show_raw_and_rectify_);
+        need_rectify_ = this->declare_parameter("need_rectify", false);
+        show_raw_and_rectify_ = this->declare_parameter("show_raw_and_rectify", false);
+        save_image_ = this->declare_parameter("save_image", false);
         if (show_raw_and_rectify_)
             need_rectify_ = true;
-        RCLCPP_INFO_STREAM(this->get_logger(), "\033[31m" << std::endl << "=> need_rectify: " << need_rectify_ << std::endl << "=> show_raw_and_rectify: " << show_raw_and_rectify_ << "\033[0m");
+        RCLCPP_INFO_STREAM(this->get_logger(), "\033[31m" << std::endl
+                                                          << "=> need_rectify: " << need_rectify_ << std::endl
+                                                          << "=> show_raw_and_rectify: " << show_raw_and_rectify_ << std::endl
+                                                          << "=> save_image: " << save_image_ << std::endl
+                                                          << "\033[0m");
 
         // ======================================================================================================================================
         // sub & pub
@@ -119,6 +123,22 @@ public:
                         cv::remap(right_raw, right_rect, map_right_x, map_right_y, cv::INTER_LINEAR);
                         RCLCPP_INFO_ONCE(this->get_logger(), "\033[31m=> rectify and resize img: [%d, %d]\033[0m", left_rect.cols, left_rect.rows);
                         cv::vconcat(left_rect, right_rect, frameBGR);
+                        if (save_image_)
+                        {
+                            cnt++;
+                            if (cnt == 10)
+                            {
+                                cv::imwrite("left.png", left_rect);
+                                cv::imwrite("right.png", right_rect);
+                                cv::Mat left_rect_nv12, right_rect_nv12;
+                                bgr_to_nv12(left_rect, left_rect_nv12);
+                                bgr_to_nv12(right_rect, right_rect_nv12);
+                                save_mat_to_bin(left_rect_nv12, "left.nv12");
+                                save_mat_to_bin(right_rect_nv12, "right.nv12");
+                                save_image_ = false;
+                                RCLCPP_INFO_ONCE(this->get_logger(), "\033[31m=> save image!\033[0m");
+                            }
+                        }
                     }
                     else
                     {
@@ -255,11 +275,42 @@ private:
         bgr24_to_nv12_neon(bgr.data, nv12.data, width, height);
     }
 
+    void save_mat_to_bin(const cv::Mat &mat, const std::string &filename)
+    {
+        // 检查矩阵是否为空
+        if (mat.empty())
+        {
+            std::cerr << "The input matrix is empty!" << std::endl;
+            return;
+        }
+
+        // 打开文件输出流，并以二进制模式写入
+        std::ofstream ofs(filename, std::ios::binary);
+        if (!ofs.is_open())
+        {
+            std::cerr << "Failed to open file for writing!" << std::endl;
+            return;
+        }
+
+        // 获取数据指针及大小
+        const uchar *dataPtr = mat.data;
+        size_t dataSize = mat.total() * mat.elemSize();
+
+        // 将数据写入文件
+        ofs.write(reinterpret_cast<const char *>(dataPtr), dataSize);
+
+        // 关闭文件
+        ofs.close();
+    }
+
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr stereo_msg_pub_; // stereo image publisher
     bool need_rectify_;
     bool show_raw_and_rectify_;
+    bool save_image_;
 
     uint64_t last_frame_timestamp_ = 0;
+
+    int cnt = 0;
 };
 
 int main(int argc, char *argv[])
