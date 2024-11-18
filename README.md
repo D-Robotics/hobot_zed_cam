@@ -10,10 +10,14 @@
 - ZED相机SDK：[zed-open-capture](https://github.com/stereolabs/zed-open-capture)
 - 地瓜双目算法：[hobot_stereonet](https://github.com/D-Robotics/hobot_stereonet)
 
-1. 安装依赖项，在RDK X5板端执行
+1. 安装依赖的库文件，在RDK X5板端执行
 
 ```shell
+# 如果RDK板端可以联网，可执行apt下载依赖的库文件
 sudo apt install libusb-1.0-0-dev libhidapi-libusb0 libhidapi-dev
+
+# 如果不能联网，则执行如下命令将库文件复制到对应目录
+cp -rv ./hidapi/* /usr/
 ```
 
 2. 编译，在RDK X5板端执行
