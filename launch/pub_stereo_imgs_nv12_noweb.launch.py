@@ -74,40 +74,6 @@ def generate_launch_description():
         arguments=["--ros-args", "--log-level", "info"],
     )
 
-    # 编码节点
-    codec_node = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory("hobot_codec"),
-                "launch/hobot_codec_encode.launch.py",
-            )
-        ),
-        launch_arguments={
-            "codec_in_mode": "ros",
-            "codec_out_mode": "ros",
-            # 左图和右图拼接后的图
-            "codec_sub_topic": "/image_combine_raw",
-            "codec_in_format": "nv12",
-            "codec_pub_topic": "/image_jpeg",
-            "codec_out_format": "jpeg",
-            "log_level": "warn",
-        }.items(),
-    )
-
-    # web展示节点
-    web_node = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory("websocket"), "launch/websocket.launch.py"
-            )
-        ),
-        launch_arguments={
-            "websocket_image_topic": "/image_jpeg",
-            "websocket_only_show_image": "true",
-            # 'websocket_smart_topic': '/detect_depth_result'
-        }.items(),
-    )
-
     return LaunchDescription(
         [
             need_rectify_arg,
@@ -116,8 +82,6 @@ def generate_launch_description():
             user_rectify_arg,
             stereo_calib_file_path_arg,
             shared_mem_node,
-            zed_cam,
-            codec_node,
-            web_node,
+            zed_cam
         ]
     )

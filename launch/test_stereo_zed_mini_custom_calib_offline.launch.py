@@ -53,7 +53,7 @@ def generate_launch_description():
     stereonet_node = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(
-                get_package_share_directory("stereonet_model"),
+                get_package_share_directory("hobot_stereonet"),
                 "launch/stereonet_model.launch.py",
             )
         ),
