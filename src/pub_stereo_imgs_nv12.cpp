@@ -91,6 +91,11 @@ public:
         RCLCPP_INFO_STREAM(this->get_logger(), "=> connected to camera sn: " << cap_0.getSerialNumber() << "[" << cap_0.getDeviceName() << "]");
         // <---- Create Video Capture
 
+        // ----> Frame size
+        int w, h;
+        cap_0.getFrameSize(w, h);
+        // <---- Frame size
+
         // ----> Retrieve calibration file from Stereolabs server
         // ZED Calibration
         // Download camera calibration file
@@ -106,7 +111,7 @@ public:
                 RCLCPP_WARN_STREAM(this->get_logger(), "Failed to open " << kalibr_file);
                 return;
               }
-              rectify_ = std::make_shared<stereonet::StereoRectify>(fs["stereo0"], 1280, 640);            
+              rectify_ = std::make_shared<stereonet::StereoRectify>(fs["stereo0"], w / 2, h);            
             } else {
               if (!sl_oc::tools::downloadCalibrationFile(cap_0.getSerialNumber(), calibration_file))
               {
@@ -116,11 +121,6 @@ public:
             }
 
         }
-
-        // ----> Frame size
-        int w, h;
-        cap_0.getFrameSize(w, h);
-        // <---- Frame size
         
         cap_0.setBrightness(4);
         cap_0.setSharpness(4); 
