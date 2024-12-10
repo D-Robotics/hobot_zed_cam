@@ -46,14 +46,14 @@ def generate_launch_description():
         )
     )
 
-    # ros2 launch stereonet_model stereonet_model_web_visual.launch.py \
+    # ros2 launch hobot_stereonet stereonet_model_web_visual.launch.py \
     # need_rectify:="False" use_local_image:="True" local_image_path:=`pwd`/data/ \
     # camera_fx:=505.044342 camera_fy:=505.044342 camera_cx:=605.167053 camera_cy:=378.247009 base_line:=0.069046
     # 双目深度估计模型
     stereonet_node = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(
-                get_package_share_directory("stereonet_model"),
+                get_package_share_directory("hobot_stereonet"),
                 "launch/stereonet_model.launch.py",
             )
         ),

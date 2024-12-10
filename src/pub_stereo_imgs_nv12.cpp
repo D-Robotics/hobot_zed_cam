@@ -47,9 +47,6 @@ public:
         qos.durability(rclcpp::DurabilityPolicy::TransientLocal);
         stereo_msg_pub_ = this->create_publisher<sensor_msgs::msg::Image>("/image_combine_raw", qos);
 
-        // start publishing thread
-        RCLCPP_INFO(this->get_logger(), "\033[31m=> create pub thread\033[0m");
-
         // ======================================================================================================================================
         sl_oc::video::VideoParams params;
         params.res = sl_oc::video::RESOLUTION::HD720;

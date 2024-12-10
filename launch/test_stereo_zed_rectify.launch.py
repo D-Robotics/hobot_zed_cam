@@ -33,8 +33,20 @@ def generate_launch_description():
         "visual_beta", default_value="0", description="visual beta"
     )
 
-    local_image_path_arg = DeclareLaunchArgument(
-        "local_image_path", default_value="/root/zhikang.zeng/helloros_ws/zed-mini-meeting-room-20241009-img-split", description="local image path"
+    camera_fx_arg = DeclareLaunchArgument(
+        "camera_fx", default_value="0", description="camera fx"
+    )
+
+    camera_cx_arg = DeclareLaunchArgument(
+        "camera_cx", default_value="0", description="camera cx"
+    )
+
+    camera_cy_arg = DeclareLaunchArgument(
+        "camera_cy", default_value="0", description="camera cy"
+    )
+
+    camera_b_arg = DeclareLaunchArgument(
+        "camera_b", default_value="0", description="camera b"
     )
 
     # 零拷贝环境配置
@@ -46,9 +58,17 @@ def generate_launch_description():
         )
     )
 
-    # ros2 launch hobot_stereonet stereonet_model_web_visual.launch.py \
-    # need_rectify:="False" use_local_image:="True" local_image_path:=`pwd`/data/ \
-    # camera_fx:=505.044342 camera_fy:=505.044342 camera_cx:=605.167053 camera_cy:=378.247009 base_line:=0.069046
+    # zed双目相机
+    zed_cam = Node(
+        package='hobot_zed_cam',
+        executable='anypub_stereo_imgs_nv12',
+        output='screen',
+        parameters=[
+            {"need_rectify": True},
+        ],
+        arguments=['--ros-args', '--log-level', 'info']
+    )
+
     # 双目深度估计模型
     stereonet_node = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -58,14 +78,13 @@ def generate_launch_description():
             )
         ),
         launch_arguments={
+            "stereo_image_topic": "/image_combine_raw",
             "need_rectify": "false",
-            "use_local_image": "true",
-            "local_image_path": LaunchConfiguration("local_image_path"),
-            "camera_fx": "765.9191691938968",
-            "camera_fy": "765.9191691938968",
-            "camera_cx": "624.0892486572266",
-            "camera_cy": "324.9126722547743",
-            "base_line": "0.0627251",
+            "camera_fx": LaunchConfiguration("camera_fx"),
+            "camera_fy": LaunchConfiguration("camera_fx"),
+            "camera_cx": LaunchConfiguration("camera_cx"),
+            "camera_cy": LaunchConfiguration("camera_cy"),
+            "base_line": LaunchConfiguration("camera_b"),
             "alpha": LaunchConfiguration("visual_alpha"),
             "beta": LaunchConfiguration("visual_beta"),
             "stereo_combine_mode": "1",
@@ -111,8 +130,12 @@ def generate_launch_description():
         [
             visual_alpha_arg,
             visual_beta_arg,
-            local_image_path_arg,
+            camera_fx_arg,
+            camera_cx_arg,
+            camera_cy_arg,
+            camera_b_arg,
             shared_mem_node,
+            zed_cam,
             stereonet_node,
             codec_node,
             web_node,
