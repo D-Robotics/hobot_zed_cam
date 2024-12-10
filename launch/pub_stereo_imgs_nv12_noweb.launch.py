@@ -49,7 +49,30 @@ def generate_launch_description():
         "stereo_calib_file_path", default_value=stereo_calib_file_path, description="stereo_calib_file_path"
     )
 
+    resolution = DeclareLaunchArgument(
+        "resolution", default_value='720', description="resolution"
+    )
 
+    zed_pub_bgr = DeclareLaunchArgument(
+        "zed_pub_bgr", default_value='False', description="zed_pub_bgr"
+    )
+
+    brightness = DeclareLaunchArgument(
+        "brightness", default_value='5', description="brightness"
+    )
+
+    sharp = DeclareLaunchArgument(
+        "sharp", default_value='4', description="sharp"
+    )
+    sat = DeclareLaunchArgument(
+        "sat", default_value='4', description="sat"
+    )
+    contrast = DeclareLaunchArgument(
+        "contrast", default_value='4', description="contrast"
+    )
+    gamma = DeclareLaunchArgument(
+        "gamma", default_value='5', description="gamma"
+    )
     # 零拷贝环境配置
     shared_mem_node = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -69,7 +92,14 @@ def generate_launch_description():
             {"show_raw_and_rectify": LaunchConfiguration("show_raw_and_rectify")},
             {"save_image": LaunchConfiguration("save_image")},
             {"user_rectify": LaunchConfiguration("user_rectify")},
-            {"stereo_calib_file_path": LaunchConfiguration("stereo_calib_file_path")}
+            {"stereo_calib_file_path": LaunchConfiguration("stereo_calib_file_path")},
+            {"resolution": LaunchConfiguration("resolution")},
+            {"zed_pub_bgr": LaunchConfiguration("zed_pub_bgr")},
+            {"brightness": LaunchConfiguration("brightness")},
+            {"sharp": LaunchConfiguration("sharp")},
+            {"sat": LaunchConfiguration("sat")},
+            {"contrast": LaunchConfiguration("contrast")},
+            {"gamma": LaunchConfiguration("gamma")},
         ],
         arguments=["--ros-args", "--log-level", "info"],
     )
@@ -82,6 +112,13 @@ def generate_launch_description():
             user_rectify_arg,
             stereo_calib_file_path_arg,
             shared_mem_node,
-            zed_cam
+            zed_cam,
+            resolution,
+            zed_pub_bgr,
+            brightness,
+            sharp,
+            contrast,
+            sat,
+            gamma
         ]
     )

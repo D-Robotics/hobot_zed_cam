@@ -21,7 +21,7 @@
 #include <arm_neon.h>
 #include <fstream>
 #include "stereo_rectify.h"
-
+#include "blockqueue.h"
 
 
 void save_images(cv::Mat &left_img, cv::Mat &right_img, uint64_t ts,
@@ -69,18 +69,32 @@ public:
 
         // ======================================================================================================================================
         // sub & pub
-        auto qos = rclcpp::QoS(rclcpp::KeepLast(10));
-        qos.reliability(rclcpp::ReliabilityPolicy::Reliable);
-        qos.durability(rclcpp::DurabilityPolicy::TransientLocal);
-        stereo_msg_pub_ = this->create_publisher<sensor_msgs::msg::Image>("/image_combine_raw", qos);
+        //auto qos = rclcpp::QoS(rclcpp::KeepLast(10));
+        //qos.reliability(rclcpp::ReliabilityPolicy::Reliable);
+        //qos.durability(rclcpp::DurabilityPolicy::TransientLocal);
+        stereo_msg_pub_ = this->create_publisher<sensor_msgs::msg::Image>("/image_combine_raw", 10);
 
         // start publishing thread
         RCLCPP_INFO(this->get_logger(), "\033[31m=> create pub thread\033[0m");
 
         // ======================================================================================================================================
         sl_oc::video::VideoParams params;
-        params.res = sl_oc::video::RESOLUTION::HD720;
+	std::string resolution = this->declare_parameter("resolution", "720");
+        RCLCPP_INFO_STREAM(this->get_logger(), "=> resolution: " << resolution);
+	cv::Size dst_size;
+	if (resolution == "360") {
+          params.res = sl_oc::video::RESOLUTION::VGA;	
+	  dst_size.width = 640;
+	  dst_size.height = 352;
+	} else if (resolution == "720") {
+          params.res = sl_oc::video::RESOLUTION::HD720;	
+	  dst_size.width = 1280;
+	  dst_size.height = 640;
+	}
         params.fps = sl_oc::video::FPS::FPS_15;
+
+	bool pub_bgr = false;
+        pub_bgr = this->declare_parameter("zed_pub_bgr", false);
 
         // ----> Create Video Capture
         sl_oc::video::VideoCapture cap_0(params);
@@ -119,16 +133,31 @@ public:
               }
               RCLCPP_INFO(this->get_logger(), "=> calibration file found. Loading...");            
             }
-
         }
         
-        cap_0.setBrightness(4);
-        cap_0.setSharpness(4); 
-        cap_0.setContrast(4);
-        cap_0.setSaturation(4);
+	int brightness = this->declare_parameter("brightness", 5);
+        RCLCPP_INFO_STREAM(this->get_logger(), "=> brightness: " << brightness);
+
+	int sharp = this->declare_parameter("sharp", 4);
+        RCLCPP_INFO_STREAM(this->get_logger(), "=> sharp: " << sharp);
+
+	int contrast = this->declare_parameter("contrast", 4);
+        RCLCPP_INFO_STREAM(this->get_logger(), "=> contrast: " << contrast);
+
+	int sat = this->declare_parameter("sat", 4);
+        RCLCPP_INFO_STREAM(this->get_logger(), "=> sat: " << sat);
+
+	int gamma = this->declare_parameter("gamma", 5);
+        RCLCPP_INFO_STREAM(this->get_logger(), "=> gamma: " << gamma);
+
+        cap_0.setBrightness(brightness);
+        cap_0.setSharpness(sharp); 
+        cap_0.setContrast(contrast);
+        cap_0.setSaturation(sat);
         cap_0.setAutoWhiteBalance(true);
-        cap_0.setGamma(5);
+        cap_0.setGamma(gamma);
         cap_0.setAECAGC(true);
+	
        // cap_0.setExposure((sl_oc::video::CAM_SENS_POS)0, 48);
        // cap_0.setExposure((sl_oc::video::CAM_SENS_POS)1, 48);
        // cap_0.setGain((sl_oc::video::CAM_SENS_POS)0, 12);
@@ -144,8 +173,8 @@ public:
         if (need_rectify_)
         {
             if (!user_rectify_) {
-              sl_oc::tools::initCalibration(calibration_file, cv::Size(w / 2, h), map_left_x, map_left_y, map_right_x, map_right_y, cameraMatrix_left, cameraMatrix_right, cv::Size(1280, 640),
-                                            &baseline);
+              sl_oc::tools::initCalibration(calibration_file, cv::Size(w / 2, h), map_left_x, map_left_y, map_right_x, map_right_y, 
+			      cameraMatrix_left, cameraMatrix_right, dst_size, &baseline);
               RCLCPP_INFO_STREAM(this->get_logger(), "=> camera Matrix L: \n" << cameraMatrix_left);
               RCLCPP_INFO_STREAM(this->get_logger(), "=> camera Matrix R: \n" << cameraMatrix_right);
               RCLCPP_INFO_STREAM(this->get_logger(), "=> baseline: " << baseline);            
@@ -153,9 +182,12 @@ public:
         }
         // ----> Initialize calibration
 
+        //  pub_thread_ = std::make_shared<std::thread>([this] { pub_func(); });
+
+
         // Infinite video grabbing loop
         cv::Mat frameBGR, left_raw, right_raw, combine_nv12, left_rect, right_rect;
-        while (1)
+        while (rclcpp::ok())
         {
             // Get last available frame
             const sl_oc::video::Frame frame = cap_0.getLastFrame(); 
@@ -175,8 +207,8 @@ public:
 
                 if (show_raw_and_rectify_)
                 {
-                    cv::resize(left_raw, left_raw, cv::Size(1280, 640));
-                    cv::resize(right_raw, right_raw, cv::Size(1280, 640));
+                    cv::resize(left_raw, left_raw, dst_size);
+                    cv::resize(right_raw, right_raw, dst_size);
                     cv::remap(left_raw, left_rect, map_left_x, map_left_y, cv::INTER_LINEAR);
                     cv::remap(right_raw, right_rect, map_right_x, map_right_y, cv::INTER_LINEAR);
                     cv::Mat frameBGR1, frameBGR2;
@@ -218,28 +250,36 @@ public:
                     }
                     else
                     {
-                        cv::resize(left_raw, left_raw, cv::Size(1280, 640));
-                        cv::resize(right_raw, right_raw, cv::Size(1280, 640));
+                        cv::resize(left_raw, left_raw, dst_size);
+                        cv::resize(right_raw, right_raw, dst_size);
                         RCLCPP_INFO_ONCE(this->get_logger(), "\033[31m=> resize img: [%d, %d]\033[0m", left_raw.cols, left_raw.rows);
                         cv::vconcat(left_raw, right_raw, frameBGR);
                     }
                 }
 
-                bgr_to_nv12(frameBGR, combine_nv12);
-
-                // create ros msg
                 auto stereo_msg = std::make_shared<sensor_msgs::msg::Image>();
                 stereo_msg->header.stamp = rclcpp::Time(frame.timestamp);
                 stereo_msg->header.frame_id = "pcl_link";
                 stereo_msg->height = frameBGR.rows;
                 stereo_msg->width = frameBGR.cols;
-                stereo_msg->encoding = "nv12";
                 stereo_msg->is_bigendian = false;
-                stereo_msg->step = frameBGR.cols;
-                stereo_msg->data.assign(combine_nv12.data, combine_nv12.data + (combine_nv12.rows * combine_nv12.cols));
+		if (pub_bgr) {
+                  stereo_msg->encoding = "bgr8";
+                  stereo_msg->step = frameBGR.cols * 3;
+                  stereo_msg->data.assign(frameBGR.data, frameBGR.data + (frameBGR.rows * frameBGR.cols) * 3);	
+		} else {	
+                  bgr_to_nv12(frameBGR, combine_nv12);
+                  stereo_msg->encoding = "nv12";
+                  stereo_msg->step = frameBGR.cols;
+                  stereo_msg->data.assign(combine_nv12.data, combine_nv12.data + (combine_nv12.rows * combine_nv12.cols));
+		}
 
-                RCLCPP_INFO_ONCE(this->get_logger(), "\033[31m=> zed frame pub\033[0m");
-                stereo_msg_pub_->publish(*stereo_msg);
+                if (pub_que_.size() > 5) {
+                  RCLCPP_WARN(this->get_logger(), "\033[31m=> zed frame full, size: %d!\033[0m", pub_que_.size()); 
+                } else {
+                  stereo_msg_pub_->publish(*stereo_msg);
+                 // pub_que_.put(stereo_msg);
+                }
             }
             else
             {
@@ -248,6 +288,20 @@ public:
         }
         // ======================================================================================================================================
     }
+
+private:
+    blockqueue<std::shared_ptr<sensor_msgs::msg::Image>> pub_que_;
+    std::shared_ptr<std::thread> pub_thread_ = nullptr;
+    
+    void pub_func() {
+       while(rclcpp::ok()) {
+           std::shared_ptr<sensor_msgs::msg::Image> stereo_msg;
+           if (pub_que_.get(stereo_msg)) {
+               RCLCPP_INFO_ONCE(this->get_logger(), "\033[31m=> zed frame pub\033[0m");
+               stereo_msg_pub_->publish(*stereo_msg);
+           }
+       }
+    }    
 
 private:
     void bgr24_to_nv12_neon(uint8_t *bgr24, uint8_t *nv12, int width, int height)
