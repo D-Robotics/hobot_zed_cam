@@ -197,9 +197,10 @@ public:
                         }
                         RCLCPP_INFO_ONCE(this->get_logger(), "\033[31m=> rectify and resize img: [%d, %d]\033[0m", left_rect.cols, left_rect.rows);
                         cv::vconcat(left_rect, right_rect, frameBGR);
-                        save_images(left_rect, right_rect, frame.timestamp, "jpg");
+                        
                         if (save_image_)
                         {
+                            save_images(left_rect, right_rect, frame.timestamp, "jpg"); 
                             cnt++;
                             if (cnt == 10)
                             {
