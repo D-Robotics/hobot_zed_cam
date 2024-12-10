@@ -49,7 +49,30 @@ def generate_launch_description():
         "stereo_calib_file_path", default_value=stereo_calib_file_path, description="stereo_calib_file_path"
     )
 
+    resolution = DeclareLaunchArgument(
+        "resolution", default_value='720', description="resolution"
+    )
 
+    zed_pub_bgr = DeclareLaunchArgument(
+        "zed_pub_bgr", default_value='False', description="zed_pub_bgr"
+    )
+
+    brightness = DeclareLaunchArgument(
+        "brightness", default_value='5', description="brightness"
+    )
+
+    sharp = DeclareLaunchArgument(
+        "sharp", default_value='4', description="sharp"
+    )
+    sat = DeclareLaunchArgument(
+        "sat", default_value='4', description="sat"
+    )
+    contrast = DeclareLaunchArgument(
+        "contrast", default_value='4', description="contrast"
+    )
+    gamma = DeclareLaunchArgument(
+        "gamma", default_value='5', description="gamma"
+    )
     # 零拷贝环境配置
     shared_mem_node = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -69,43 +92,16 @@ def generate_launch_description():
             {"show_raw_and_rectify": LaunchConfiguration("show_raw_and_rectify")},
             {"save_image": LaunchConfiguration("save_image")},
             {"user_rectify": LaunchConfiguration("user_rectify")},
-            {"stereo_calib_file_path": LaunchConfiguration("stereo_calib_file_path")}
+            {"stereo_calib_file_path": LaunchConfiguration("stereo_calib_file_path")},
+            {"resolution": LaunchConfiguration("resolution")},
+            {"zed_pub_bgr": LaunchConfiguration("zed_pub_bgr")},
+            {"brightness": LaunchConfiguration("brightness")},
+            {"sharp": LaunchConfiguration("sharp")},
+            {"sat": LaunchConfiguration("sat")},
+            {"contrast": LaunchConfiguration("contrast")},
+            {"gamma": LaunchConfiguration("gamma")},
         ],
         arguments=["--ros-args", "--log-level", "info"],
-    )
-
-    # 编码节点
-    codec_node = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory("hobot_codec"),
-                "launch/hobot_codec_encode.launch.py",
-            )
-        ),
-        launch_arguments={
-            "codec_in_mode": "ros",
-            "codec_out_mode": "ros",
-            # 左图和右图拼接后的图
-            "codec_sub_topic": "/image_combine_raw",
-            "codec_in_format": "nv12",
-            "codec_pub_topic": "/image_jpeg",
-            "codec_out_format": "jpeg",
-            "log_level": "warn",
-        }.items(),
-    )
-
-    # web展示节点
-    web_node = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory("websocket"), "launch/websocket.launch.py"
-            )
-        ),
-        launch_arguments={
-            "websocket_image_topic": "/image_jpeg",
-            "websocket_only_show_image": "true",
-            # 'websocket_smart_topic': '/detect_depth_result'
-        }.items(),
     )
 
     return LaunchDescription(
@@ -117,7 +113,12 @@ def generate_launch_description():
             stereo_calib_file_path_arg,
             shared_mem_node,
             zed_cam,
-            codec_node,
-            web_node,
+            resolution,
+            zed_pub_bgr,
+            brightness,
+            sharp,
+            contrast,
+            sat,
+            gamma
         ]
     )
