@@ -112,13 +112,13 @@ def generate_launch_description():
             user_rectify_arg,
             stereo_calib_file_path_arg,
             shared_mem_node,
-            zed_cam,
             resolution,
             zed_pub_bgr,
             brightness,
             sharp,
             contrast,
             sat,
-            gamma
+            gamma,
+            zed_cam
         ]
     )
