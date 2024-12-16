@@ -78,15 +78,14 @@ public:
         std::string resolution = this->declare_parameter("resolution", "720");
         RCLCPP_INFO_STREAM(this->get_logger(), "=> resolution: " << resolution);
         cv::Size dst_size;
+        params.res = sl_oc::video::RESOLUTION::HD720;
         if (resolution == "360")
         {
-            params.res = sl_oc::video::RESOLUTION::VGA;
             dst_size.width = 640;
             dst_size.height = 352;
         }
         else if (resolution == "720")
-        {
-            params.res = sl_oc::video::RESOLUTION::HD720;
+        {   
             dst_size.width = 1280;
             dst_size.height = 640;
         }
@@ -180,7 +179,10 @@ public:
                 sl_oc::tools::initCalibration(calibration_file, cv::Size(w / 2, h), map_left_x, map_left_y, map_right_x, map_right_y, cameraMatrix_left, cameraMatrix_right, dst_size, &baseline);
                 RCLCPP_INFO_STREAM(this->get_logger(), "=> camera Matrix L: \n" << cameraMatrix_left);
                 RCLCPP_INFO_STREAM(this->get_logger(), "=> camera Matrix R: \n" << cameraMatrix_right);
-                RCLCPP_INFO_STREAM(this->get_logger(), "=> baseline: " << baseline);
+                RCLCPP_INFO(this->get_logger(), "=> rectified cx: %f, cy: %f, fx: %f, fy: %f, base_line: %f\n", 
+                    cameraMatrix_left.at<double>(0, 2), cameraMatrix_left.at<double>(1, 2), 
+                    cameraMatrix_left.at<double>(0, 0), cameraMatrix_left.at<double>(1, 1),
+                    baseline * 1e-3);
             }
         }
         // ----> Initialize calibration
