@@ -26,27 +26,11 @@ from launch.substitutions import LaunchConfiguration
 def generate_launch_description():
 
     visual_alpha_arg = DeclareLaunchArgument(
-        "visual_alpha", default_value="2", description="visual alpha"
+        "visual_alpha", default_value="4", description="visual alpha"
     )
 
     visual_beta_arg = DeclareLaunchArgument(
         "visual_beta", default_value="0", description="visual beta"
-    )
-
-    camera_fx_arg = DeclareLaunchArgument(
-        "camera_fx", default_value="0", description="camera fx"
-    )
-
-    camera_cx_arg = DeclareLaunchArgument(
-        "camera_cx", default_value="0", description="camera cx"
-    )
-
-    camera_cy_arg = DeclareLaunchArgument(
-        "camera_cy", default_value="0", description="camera cy"
-    )
-
-    camera_b_arg = DeclareLaunchArgument(
-        "camera_b", default_value="0", description="camera b"
     )
 
     # 零拷贝环境配置
@@ -59,14 +43,16 @@ def generate_launch_description():
     )
 
     # zed双目相机
-    zed_cam = Node(
-        package='hobot_zed_cam',
-        executable='anypub_stereo_imgs_nv12',
-        output='screen',
-        parameters=[
-            {"need_rectify": True},
-        ],
-        arguments=['--ros-args', '--log-level', 'info']
+    zed_cam_node = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(
+                get_package_share_directory("hobot_zed_cam"),
+                "launch/zed_cam_node.launch.py",
+            )
+        ),
+        launch_arguments={
+            "need_rectify": "True",
+        }.items(),
     )
 
     # 双目深度估计模型
@@ -80,15 +66,9 @@ def generate_launch_description():
         launch_arguments={
             "stereo_image_topic": "/image_combine_raw",
             "need_rectify": "false",
-            "camera_fx": LaunchConfiguration("camera_fx"),
-            "camera_fy": LaunchConfiguration("camera_fx"),
-            "camera_cx": LaunchConfiguration("camera_cx"),
-            "camera_cy": LaunchConfiguration("camera_cy"),
-            "base_line": LaunchConfiguration("camera_b"),
             "alpha": LaunchConfiguration("visual_alpha"),
             "beta": LaunchConfiguration("visual_beta"),
             "stereo_combine_mode": "1",
-            "log_level": "warn",
         }.items(),
     )
 
@@ -130,12 +110,8 @@ def generate_launch_description():
         [
             visual_alpha_arg,
             visual_beta_arg,
-            camera_fx_arg,
-            camera_cx_arg,
-            camera_cy_arg,
-            camera_b_arg,
             shared_mem_node,
-            zed_cam,
+            zed_cam_node,
             stereonet_node,
             codec_node,
             web_node,
