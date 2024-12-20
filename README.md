@@ -63,7 +63,7 @@ resolution:=720p dst_width:=640 dst_height:=352
 
 在浏览器输入[http://ip:8000](http://ip:8000)即可查看zed输出的双目图像
 
-![](./doc/zed_stereo.png)
+![](./doc/zed-stereo-result.png)
 
 ### (2) 启动zed相机+双目算法
 
@@ -87,7 +87,7 @@ camera_fx:=260.932 camera_fy:=260.932 camera_cx:=350.018 camera_cy:=173.047 base
 
 在浏览器输入[http://ip:8000](http://ip:8000)即可查看双目算法的结果
 
-![](./doc/zed-2i_stereo.png)
+![](./doc/zed-stereonet-result.png)
 
 ## 功能包参数
 
