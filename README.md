@@ -52,14 +52,20 @@ ros2 launch hobot_zed_cam pub_stereo_imgs.launch.py
 ros2 launch hobot_zed_cam pub_stereo_imgs.launch.py need_rectify:=true
 
 # 加载自定义标定文件，发布矫正后的图像，通过dst_width、dst_height参数控制矫正后图片的分辨率
-ros2 launch hobot_zed_cam pub_stereo_imgs.launch.py need_rectify:=true user_rectify:=true stereo_calib_file_path:=./stereo_8_zed_min.yaml
+ros2 launch hobot_zed_cam pub_stereo_imgs.launch.py need_rectify:=true user_rectify:=true stereo_calib_file_path:=./stereo_8_zed_2i.yaml
+
+# 以上启动文件均可加入参数resolution控制zed本身发布图像的分辨率，但最终发布图像的分辨率由参数dst_width、dst_height控制，例如：
+ros2 launch hobot_zed_cam pub_stereo_imgs.launch.py need_rectify:=true resolution:=720p dst_width:=640 dst_height:=352
+
+ros2 launch hobot_zed_cam pub_stereo_imgs.launch.py need_rectify:=true user_rectify:=true stereo_calib_file_path:=./stereo_8_zed_2i.yaml \
+resolution:=720p dst_width:=640 dst_height:=352
 ```
 
 在浏览器输入[http://ip:8000](http://ip:8000)即可查看zed输出的双目图像
 
 ![](./doc/zed_stereo.png)
 
-### (3) 启动zed相机+双目算法，读取zed自带的矫正参数进行矫正
+### (2) 启动zed相机+双目算法
 
 ```shell
 source /opt/tros/humble/setup.bash
@@ -67,9 +73,16 @@ source <hobot_zed_cam的编译路径>/install/setup.bash
 
 # 加载zed自带的标定参数，启动双目算法
 ros2 launch hobot_zed_cam test_stereo_zed_rectify.launch.py \
-resolution:="720p" dst_width:=640 dst_height:=352 \
+resolution:=720p dst_width:=640 dst_height:=352 \
 stereonet_model_file_path:=./x5baseplus_alldata_woIsaac_yuv444.bin postprocess:=v2 \
 camera_fx:=259.251139 camera_fy:=259.251139 camera_cx:=326.866024 camera_cy:=176.007146 base_line:=0.119893
+
+# 加载自定义的标定参数，启动双目算法
+ros2 launch hobot_zed_cam test_stereo_zed_rectify.launch.py \
+resolution:=720p dst_width:=640 dst_height:=352 \
+user_rectify:=true stereo_calib_file_path:=./stereo_8_zed_2i.yaml \
+stereonet_model_file_path:=./x5baseplus_alldata_woIsaac_yuv444.bin postprocess:=v2 \
+camera_fx:=260.932 camera_fy:=260.932 camera_cx:=350.018 camera_cy:=173.047 base_line:=0.12003
 ```
 
 在浏览器输入[http://ip:8000](http://ip:8000)即可查看双目算法的结果
@@ -82,7 +95,7 @@ camera_fx:=259.251139 camera_fy:=259.251139 camera_cx:=326.866024 camera_cy:=176
 | ---------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | **畸变矫正相关**       |                        |                                                                                                                                         |
 | need_rectify           | false                  | 是否对双目图像进行矫正，默认使用zed自带的标定参数进行矫正，如需使用自定义标定参数，需要设置`user_rectify`和`stereo_calib_file_path`参数 |
-| user_rectify           | false                  | 如果need_rectify==true && user_rectify==true，则加载`stereo_calib_file_path`下的标定文件进行矫正                                        |
+| user_rectify           | false                  | 如果`need_rectify==true && user_rectify==true`，则加载`stereo_calib_file_path`下的标定文件进行矫正                                        |
 | stereo_calib_file_path | stereo_8_zed_mini.yaml | 自定义标定文件路径                                                                                                                      |
 | **zed配置相关**        |                        |                                                                                                                                         |
 | resolution             | 720p                   | zed出流的分辨率，可设置360p、720p、1080p、2K                                                                                            |

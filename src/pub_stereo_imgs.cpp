@@ -264,6 +264,7 @@ private:
                         if (save_image_)
                         {
                             save_images(left_rect, right_rect, frame.timestamp, "jpg");
+                            RCLCPP_INFO(this->get_logger(), "=> save image: [%ld]", frame.timestamp);
                         }
                     }
                     else

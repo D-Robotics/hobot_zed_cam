@@ -14,24 +14,18 @@ struct StereoRectify
 
     StereoRectify(const cv::FileNode &fs, int model_input_w, int model_input_h)
     {
-        float width_scale, height_scale;
         // Reading cam0 data
         std::vector<double> cam0_distortion_coeffs;
         std::vector<double> cam0_intrinsics;
-        std::vector<int> cam0_resolution;
 
         fs["cam0"]["distortion_coeffs"] >> cam0_distortion_coeffs;
         fs["cam0"]["intrinsics"] >> cam0_intrinsics;
         fs["cam0"]["resolution"] >> cam0_resolution;
 
-        width_scale = model_input_w / static_cast<float>(cam0_resolution[0]);
-        height_scale = model_input_h / static_cast<float>(cam0_resolution[1]);
-
         // Reading cam1 data
         std::vector<std::vector<double>> cam1_T_cn_cnm1;
         std::vector<double> cam1_distortion_coeffs;
         std::vector<double> cam1_intrinsics;
-        std::vector<int> cam1_resolution;
 
         fs["cam1"]["T_cn_cnm1"] >> cam1_T_cn_cnm1;
         fs["cam1"]["distortion_coeffs"] >> cam1_distortion_coeffs;
@@ -40,10 +34,10 @@ struct StereoRectify
 
         Dl = cv::Mat(1, cam0_distortion_coeffs.size(), CV_64F, cam0_distortion_coeffs.data()).clone();
         Kl = cv::Mat::zeros(3, 3, CV_64F);
-        Kl.at<double>(0, 0) = cam0_intrinsics[0] * width_scale;
-        Kl.at<double>(0, 2) = cam0_intrinsics[2] * width_scale;
-        Kl.at<double>(1, 1) = cam0_intrinsics[1] * height_scale;
-        Kl.at<double>(1, 2) = cam0_intrinsics[3] * height_scale;
+        Kl.at<double>(0, 0) = cam0_intrinsics[0];
+        Kl.at<double>(0, 2) = cam0_intrinsics[2];
+        Kl.at<double>(1, 1) = cam0_intrinsics[1];
+        Kl.at<double>(1, 2) = cam0_intrinsics[3];
         Kl.at<double>(2, 2) = 1;
 
         R_rl = cv::Mat::zeros(3, 3, CV_64F);
@@ -65,17 +59,14 @@ struct StereoRectify
 
         Dr = cv::Mat(1, cam1_distortion_coeffs.size(), CV_64F, cam1_distortion_coeffs.data()).clone();
 
-        width_scale = model_input_w / static_cast<float>(cam1_resolution[0]);
-        height_scale = model_input_h / static_cast<float>(cam1_resolution[1]);
-
         Kr = cv::Mat::zeros(3, 3, CV_64F);
-        Kr.at<double>(0, 0) = cam1_intrinsics[0] * width_scale;
-        Kr.at<double>(0, 2) = cam1_intrinsics[2] * width_scale;
-        Kr.at<double>(1, 1) = cam1_intrinsics[1] * height_scale;
-        Kr.at<double>(1, 2) = cam1_intrinsics[3] * height_scale;
+        Kr.at<double>(0, 0) = cam1_intrinsics[0];
+        Kr.at<double>(0, 2) = cam1_intrinsics[2];
+        Kr.at<double>(1, 1) = cam1_intrinsics[1];
+        Kr.at<double>(1, 2) = cam1_intrinsics[3];
         Kr.at<double>(2, 2) = 1;
 
-        cv::stereoRectify(Kl, Dl, Kr, Dr, cv::Size(model_input_w, model_input_h), R_rl, t_rl, Rl, Rr, Pl, Pr, Q, cv::CALIB_ZERO_DISPARITY, 0);
+        cv::stereoRectify(Kl, Dl, Kr, Dr, cv::Size(cam0_resolution[0], cam0_resolution[1]), R_rl, t_rl, Rl, Rr, Pl, Pr, Q, cv::CALIB_ZERO_DISPARITY, 0, cv::Size(model_input_w, model_input_h));
 
         cv::initUndistortRectifyMap(Kl, Dl, Rl, Pl, cv::Size(model_input_w, model_input_h), CV_32FC1, undistmap1l, undistmap2l);
         cv::initUndistortRectifyMap(Kr, Dr, Rr, Pr, cv::Size(model_input_w, model_input_h), CV_32FC1, undistmap1r, undistmap2r);
@@ -99,17 +90,19 @@ struct StereoRectify
                   << R_rl << std::endl
                   << t_rl << std::endl
                   << "calib file width, height: " << cam0_resolution[0] << ", " << cam0_resolution[1] << std::endl
-                  << "width_scale, height_scale: " << width_scale << ", " << height_scale << std::endl
                   << std::endl;
 
         std::cout << "\033[31m=> rectified fx: " << camera_fx << ", fy: " << camera_fy << ", cx: " << camera_cx << ", cy: " << camera_cy << ", base_line: " << base_line << "\033[0m" << std::endl;
-        std::cout << "=> camera_fx:=:" << camera_fx << " camera_fy:=" << camera_fy << " camera_cx:=" << camera_cx << " camera_cy:=" << camera_cy << " base_line:=" << base_line << std::endl;
+        std::cout << "=> camera_fx:=" << camera_fx << " camera_fy:=" << camera_fy << " camera_cx:=" << camera_cx << " camera_cy:=" << camera_cy << " base_line:=" << base_line << std::endl;
     }
 
     void Rectify(const cv::Mat &left_image, const cv::Mat &right_image, cv::Mat &rectified_left_image, cv::Mat &rectified_right_image)
     {
-        cv::remap(left_image, rectified_left_image, undistmap1l, undistmap2l, cv::INTER_LINEAR);
-        cv::remap(right_image, rectified_right_image, undistmap1r, undistmap2r, cv::INTER_LINEAR);
+        cv::Mat left_image_resize, right_image_resize;
+        cv::resize(left_image, left_image_resize, cv::Size(cam0_resolution[0], cam0_resolution[1]));
+        cv::resize(right_image, right_image_resize, cv::Size(cam1_resolution[0], cam1_resolution[1]));
+        cv::remap(left_image_resize, rectified_left_image, undistmap1l, undistmap2l, cv::INTER_LINEAR);
+        cv::remap(right_image_resize, rectified_right_image, undistmap1r, undistmap2r, cv::INTER_LINEAR);
     }
 
     void GetIntrinsic(float &cx, float &cy, float &fx, float &fy, float &bl)
@@ -125,6 +118,7 @@ struct StereoRectify
     cv::Mat Kl, Kr, Dl, Dr, R_rl, t_rl;
     cv::Mat undistmap1l, undistmap2l, undistmap1r, undistmap2r;
     float camera_cx, camera_cy, camera_fx, camera_fy, base_line;
+    std::vector<int> cam0_resolution, cam1_resolution;
 };
 
 } // namespace stereonet
