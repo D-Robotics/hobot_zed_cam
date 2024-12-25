@@ -34,6 +34,7 @@ public:
         need_rectify_ = this->declare_parameter("need_rectify", false);
         show_raw_and_rectify_ = this->declare_parameter("show_raw_and_rectify", false);
         save_image_ = this->declare_parameter("save_image", false);
+        save_origin_image_ = this->declare_parameter("save_origin_image", false);
         user_rectify_ = this->declare_parameter("user_rectify", false);
         stereo_calib_file_path_ = this->declare_parameter("stereo_calib_file_path", "stereo_8_zed_mini.yaml");
         resolution_ = this->declare_parameter("resolution", "720p");
@@ -51,6 +52,7 @@ public:
                                                           << "=> need_rectify: " << need_rectify_ << std::endl
                                                           << "=> show_raw_and_rectify: " << show_raw_and_rectify_ << std::endl
                                                           << "=> save_image: " << save_image_ << std::endl
+                                                          << "=> save_origin_image: " << save_origin_image_ << std::endl
                                                           << "=> user_rectify: " << user_rectify_ << std::endl
                                                           << "=> resolution: " << resolution_ << std::endl
                                                           << "=> brightness: " << brightness_ << std::endl
@@ -261,7 +263,7 @@ private:
                     {
                         cv::vconcat(left_rect, right_rect, frameBGR);
                         RCLCPP_INFO_ONCE(this->get_logger(), "\033[31m=> rectify img size: [%d, %d]\033[0m", left_rect.cols, left_rect.rows);
-                        if (save_image_)
+                        if (save_image_ && !save_origin_image_)
                         {
                             save_images(left_rect, right_rect, frame.timestamp, "jpg");
                             RCLCPP_INFO(this->get_logger(), "=> save image: [%ld]", frame.timestamp);
@@ -274,6 +276,11 @@ private:
                         cv::vconcat(left_raw, right_raw, frameBGR);
                         RCLCPP_INFO_ONCE(this->get_logger(), "\033[31m=> resize img: [%d, %d]\033[0m", left_raw.cols, left_raw.rows);
                     }
+                }
+                
+                if (save_origin_image_) {
+                    save_images(left_raw, right_raw, frame.timestamp, "jpg");
+                    RCLCPP_INFO(this->get_logger(), "=> save origin image: [%ld]", frame.timestamp);
                 }
 
                 // ------------------------------------------------------- pub msg -------------------------------------------------------
@@ -532,6 +539,9 @@ private:
 
     // save stereo image flag
     bool save_image_;
+    
+    // save stereo image that before rectify flag
+    bool save_origin_image_;
 
     // last frame timestamp
     uint64_t last_frame_timestamp_ = 0;

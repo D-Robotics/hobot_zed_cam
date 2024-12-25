@@ -114,6 +114,11 @@ def generate_launch_description():
             "description": "gamma",
         },
         {"name": "log_level", "default_value": "info", "description": "log_level"},
+        {
+            "name": "save_origin_image",
+            "default_value": "false",
+            "description": "save_origin_image",
+        },
     ]
 
     launch = declare_configurable_parameters(node_params)
