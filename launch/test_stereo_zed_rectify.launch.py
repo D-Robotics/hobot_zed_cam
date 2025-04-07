@@ -65,6 +65,7 @@ def generate_launch_description():
         ),
         launch_arguments={
             "stereo_image_topic": "/image_combine_raw",
+            "camera_info_topic": "/image_combine_raw/camera_info",
             "need_rectify": "false",
             "alpha": LaunchConfiguration("visual_alpha"),
             "beta": LaunchConfiguration("visual_beta"),

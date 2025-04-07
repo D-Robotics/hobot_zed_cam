@@ -14,6 +14,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/image.hpp"
+#include "sensor_msgs/msg/camera_info.hpp"
 #include "opencv2/opencv.hpp"
 #include "cv_bridge/cv_bridge.h"
 #include "videocapture.hpp"
@@ -74,7 +75,13 @@ public:
         // auto qos = rclcpp::QoS(rclcpp::KeepLast(10));
         // qos.reliability(rclcpp::ReliabilityPolicy::Reliable);
         // qos.durability(rclcpp::DurabilityPolicy::TransientLocal);
-        stereo_msg_pub_ = this->create_publisher<sensor_msgs::msg::Image>("/image_combine_raw", 10);
+        stereo_msg_topic_ = "/image_combine_raw";
+        cam_info_msg_topic_ = stereo_msg_topic_ + "/camera_info";
+        stereo_msg_pub_ = this->create_publisher<sensor_msgs::msg::Image>(stereo_msg_topic_, 10);
+        if (need_rectify_)
+        {
+            cam_info_msg_pub_ = this->create_publisher<sensor_msgs::msg::CameraInfo>(cam_info_msg_topic_, 10);
+        }
 
         // ======================================================================================================================================
         int result = init_zed_cam();
@@ -176,6 +183,8 @@ private:
                 return -1;
             }
             rectify_ = std::make_shared<stereonet::StereoRectify>(fs["stereo0"], dst_width_, dst_height_);
+
+            rectify_->GetIntrinsic( rect_cx_,  rect_cy_, rect_fx_, rect_fy_, baseline_);
         }
         else
         {
@@ -198,11 +207,14 @@ private:
             sl_oc::tools::initCalibration(calibration_file, cv::Size(w / 2, h), map_left_x_, map_left_y_, map_right_x_, map_right_y_, cameraMatrix_left, cameraMatrix_right, dst_size_, &baseline);
             RCLCPP_INFO_STREAM(this->get_logger(), "=> camera Matrix L: \n" << cameraMatrix_left);
             RCLCPP_INFO_STREAM(this->get_logger(), "=> camera Matrix R: \n" << cameraMatrix_right);
-            RCLCPP_INFO(this->get_logger(), "\033[31m=> rectified fx: %f, fy: %f, cx: %f, cy: %f, base_line: %f\033[0m", cameraMatrix_left.at<double>(0, 0), cameraMatrix_left.at<double>(1, 1),
-                        cameraMatrix_left.at<double>(0, 2), cameraMatrix_left.at<double>(1, 2), baseline * 1e-3);
-            RCLCPP_INFO(this->get_logger(), "=> camera_fx:=%f camera_fy:=%f camera_cx:=%f camera_cy:=%f base_line:=%f", cameraMatrix_left.at<double>(0, 0), cameraMatrix_left.at<double>(1, 1),
-                        cameraMatrix_left.at<double>(0, 2), cameraMatrix_left.at<double>(1, 2), baseline * 1e-3);
+
+            rect_fx_ = cameraMatrix_left.at<double>(0, 0);
+            rect_fy_ = cameraMatrix_left.at<double>(1, 1);
+            rect_cx_ = cameraMatrix_left.at<double>(0, 2);
+            rect_cy_ = cameraMatrix_left.at<double>(1, 2);
+            baseline_ = baseline * 1e-3;
         }
+        RCLCPP_INFO(this->get_logger(), "\033[31m=> rectified fx: %f, fy: %f, cx: %f, cy: %f, base_line: %f\033[0m", rect_fx_, rect_fy_, rect_cx_, rect_cy_, baseline_);
         // ----> Initialize calibration
         return 0;
     }
@@ -277,7 +289,7 @@ private:
                         RCLCPP_INFO_ONCE(this->get_logger(), "\033[31m=> resize img: [%d, %d]\033[0m", left_raw.cols, left_raw.rows);
                     }
                 }
-                
+
                 if (save_origin_image_) {
                     save_images(left_raw, right_raw, frame.timestamp, "jpg");
                     RCLCPP_INFO(this->get_logger(), "=> save origin image: [%ld]", frame.timestamp);
@@ -304,6 +316,19 @@ private:
                     stereo_msg->data.assign(combine_nv12.data, combine_nv12.data + (combine_nv12.rows * combine_nv12.cols));
                 }
                 stereo_msg_pub_->publish(*stereo_msg);
+
+                if (need_rectify_)
+                {
+                    auto cam_info = std::make_shared<sensor_msgs::msg::CameraInfo>();
+                    cam_info->header.stamp = stereo_msg->header.stamp ;
+                    cam_info->header.frame_id = "zed_camera";
+                    cam_info->width = frameBGR.rows;
+                    cam_info->height = frameBGR.cols;
+                    cam_info->k = {rect_fx_, 0, rect_cx_, 0, rect_fy_, rect_cy_, 0, 0, 1};  // fx, fy, cx, cy
+                    cam_info->p = {rect_fx_, 0, rect_cx_, 0, 0, rect_fy_, rect_cy_, 0, 0, 0, 1, 0};
+                    cam_info->p[3] = baseline_ * rect_fx_;  // Tx = baseline * fx
+                    cam_info_msg_pub_->publish(*cam_info);
+                }
 
                 // if (pub_que_.size() > 5)
                 // {
@@ -515,6 +540,9 @@ private:
 
     // stereo image publisher
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr stereo_msg_pub_;
+    rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_msg_pub_;
+    std::string stereo_msg_topic_ = "/image_combine_raw";
+    std::string cam_info_msg_topic_ = "/image_combine_raw/camera_info";
     // false: pub nv12 data, true: pub bgr data
     bool zed_pub_bgr_ = false;
     // blockqueue<std::shared_ptr<sensor_msgs::msg::Image>> pub_que_;
@@ -539,12 +567,15 @@ private:
 
     // save stereo image flag
     bool save_image_;
-    
+
     // save stereo image that before rectify flag
     bool save_origin_image_;
 
     // last frame timestamp
     uint64_t last_frame_timestamp_ = 0;
+
+    // cam param
+    float rect_fx_, rect_fy_, rect_cx_, rect_cy_, baseline_; 
 };
 
 int main(int argc, char *argv[])
