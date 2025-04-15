@@ -44,8 +44,8 @@ public:
         contrast_ = this->declare_parameter("contrast", 4);
         sat_ = this->declare_parameter("sat", 4);
         gamma_ = this->declare_parameter("gamma", 5);
-        dst_width_ = this->declare_parameter("dst_width", 1280);
-        dst_height_ = this->declare_parameter("dst_height", 640);
+        dst_width_ = this->declare_parameter("dst_width", -1);
+        dst_height_ = this->declare_parameter("dst_height", -1);
         zed_pub_bgr_ = this->declare_parameter("zed_pub_bgr", false);
         if (show_raw_and_rectify_)
             need_rectify_ = true;
@@ -68,7 +68,6 @@ public:
         {
             RCLCPP_INFO_STREAM(this->get_logger(), "\033[31m" << "=> stereo_calib_file_path: " << stereo_calib_file_path_ << "\033[0m");
         }
-        dst_size_ = cv::Size(dst_width_, dst_height_);
 
         // ======================================================================================================================================
         // sub & pub
@@ -85,6 +84,21 @@ public:
 
         // ======================================================================================================================================
         int result = init_zed_cam();
+
+        if (dst_width_ == -1 || dst_height_ == -1)
+        {
+            int w, h;
+            cap_0_->getFrameSize(w, h);
+            dst_width_ = w / 2;
+            dst_height_ = h;
+            dst_size_ = cv::Size(dst_width_, dst_height_);
+            RCLCPP_INFO_STREAM(this->get_logger(), "\033[31m=> [dst_width, dst_height]: [" << dst_width_ << ", " << dst_height_ << "]" << std::endl << "\033[0m");
+        }
+        else
+        {
+            dst_size_ = cv::Size(dst_width_, dst_height_);
+        }
+
         if (result != 0)
         {
             rclcpp::shutdown();
@@ -146,7 +160,7 @@ private:
             RCLCPP_ERROR(this->get_logger(), "\033[31m=> serial_num error!\033[0m");
             return -1;
         }
-        RCLCPP_INFO_STREAM(this->get_logger(), "=> connected to camera sn: " << serial_num<< "[" << cap_0_->getDeviceName() << "]");
+        RCLCPP_INFO_STREAM(this->get_logger(), "=> connected to camera sn: " << serial_num << "[" << cap_0_->getDeviceName() << "]");
         // <---- Create Video Capture
 
         // ======================================================================================================================================
@@ -184,7 +198,7 @@ private:
             }
             rectify_ = std::make_shared<stereonet::StereoRectify>(fs["stereo0"], dst_width_, dst_height_);
 
-            rectify_->GetIntrinsic( rect_cx_,  rect_cy_, rect_fx_, rect_fy_, baseline_);
+            rectify_->GetIntrinsic(rect_cx_, rect_cy_, rect_fx_, rect_fy_, baseline_);
         }
         else
         {
@@ -290,7 +304,8 @@ private:
                     }
                 }
 
-                if (save_origin_image_) {
+                if (save_origin_image_)
+                {
                     save_images(left_raw, right_raw, frame.timestamp, "jpg");
                     RCLCPP_INFO(this->get_logger(), "=> save origin image: [%ld]", frame.timestamp);
                 }
@@ -320,13 +335,13 @@ private:
                 if (need_rectify_)
                 {
                     auto cam_info = std::make_shared<sensor_msgs::msg::CameraInfo>();
-                    cam_info->header.stamp = stereo_msg->header.stamp ;
+                    cam_info->header.stamp = stereo_msg->header.stamp;
                     cam_info->header.frame_id = "zed_camera";
                     cam_info->width = frameBGR.rows;
                     cam_info->height = frameBGR.cols;
-                    cam_info->k = {rect_fx_, 0, rect_cx_, 0, rect_fy_, rect_cy_, 0, 0, 1};  // fx, fy, cx, cy
+                    cam_info->k = {rect_fx_, 0, rect_cx_, 0, rect_fy_, rect_cy_, 0, 0, 1}; // fx, fy, cx, cy
                     cam_info->p = {rect_fx_, 0, rect_cx_, 0, 0, rect_fy_, rect_cy_, 0, 0, 0, 1, 0};
-                    cam_info->p[3] = baseline_ * rect_fx_;  // Tx = baseline * fx
+                    cam_info->p[3] = baseline_ * rect_fx_; // Tx = baseline * fx
                     cam_info_msg_pub_->publish(*cam_info);
                 }
 
@@ -575,7 +590,7 @@ private:
     uint64_t last_frame_timestamp_ = 0;
 
     // cam param
-    float rect_fx_, rect_fy_, rect_cx_, rect_cy_, baseline_; 
+    float rect_fx_, rect_fy_, rect_cx_, rect_cy_, baseline_;
 };
 
 int main(int argc, char *argv[])

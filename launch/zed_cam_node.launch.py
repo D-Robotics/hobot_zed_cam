@@ -70,12 +70,12 @@ def generate_launch_description():
         },
         {
             "name": "dst_width",
-            "default_value": "1280",
+            "default_value": "-1",
             "description": "dst_width",
         },
         {
             "name": "dst_height",
-            "default_value": "640",
+            "default_value": "-1",
             "description": "dst_height",
         },
         {
