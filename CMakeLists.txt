@@ -96,6 +96,27 @@ find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(cv_bridge REQUIRED)
+if(DEFINED ENV{ROS_DISTRO})
+    set(PREFERRED_ROS_DISTRO $ENV{ROS_DISTRO})
+else()
+    # 设置默认优先级，jazzy优先于humble
+    if(EXISTS "/opt/ros/jazzy")
+        set(PREFERRED_ROS_DISTRO jazzy)
+    elseif(EXISTS "/opt/ros/humble")
+        set(PREFERRED_ROS_DISTRO humble)
+    else()
+        set(PREFERRED_ROS_DISTRO humble)
+    endif()
+endif()
+
+if(DEFINED PREFERRED_ROS_DISTRO)
+    message(STATUS "Preferred ROS distribution: ${PREFERRED_ROS_DISTRO}")
+endif()
+
+
+if("${PREFERRED_ROS_DISTRO}" STREQUAL "jazzy")
+    add_definitions(-DCV_BRIDGE_CPP)
+endif()
 
 # add executable
 add_executable(pub_stereo_imgs src/pub_stereo_imgs.cpp ${SRC_FULL})

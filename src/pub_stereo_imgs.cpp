@@ -16,7 +16,11 @@
 #include "sensor_msgs/msg/image.hpp"
 #include "sensor_msgs/msg/camera_info.hpp"
 #include "opencv2/opencv.hpp"
-#include "cv_bridge/cv_bridge.h"
+#ifdef CV_BRIDGE_CPP
+#include <cv_bridge/cv_bridge.hpp>
+#else
+#include <cv_bridge/cv_bridge.h>
+#endif
 #include "videocapture.hpp"
 #include "calibration.hpp"
 #include <arm_neon.h>
